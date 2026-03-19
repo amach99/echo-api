@@ -18,6 +18,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.auth.schemas import RegisterRequest
 from app.config import get_settings
+from app.models.invite import Invite, InviteStatus
 from app.models.user import AccountType, User
 
 settings = get_settings()
@@ -140,6 +141,24 @@ async def register_user(payload: RegisterRequest, db: AsyncSession) -> User:
     )
     db.add(user)
     await db.flush()  # get user_id before commit
+
+    # ------------------------------------------------------------------ #
+    # Invite hook — mark invite as accepted if a valid token was provided.
+    # Invalid / expired tokens are silently ignored — never block registration.
+    # ------------------------------------------------------------------ #
+    if payload.invite_token:
+        invite_result = await db.execute(
+            select(Invite).where(
+                Invite.token == payload.invite_token,
+                Invite.status == InviteStatus.PENDING,
+            )
+        )
+        invite = invite_result.scalar_one_or_none()
+        if invite is not None and invite.expires_at > datetime.now(UTC):
+            invite.status = InviteStatus.ACCEPTED
+            invite.accepted_at = datetime.now(UTC)
+            await db.flush()
+
     return user
 
 

@@ -60,6 +60,13 @@ class Settings(BaseSettings):
     ID_VERIFY_WEBHOOK_SECRET: str = "PLACEHOLDER"
 
     # ------------------------------------------------------------------ #
+    # Email delivery
+    # ------------------------------------------------------------------ #
+    EMAIL_PROVIDER: Literal["mock", "resend"] = "mock"
+    EMAIL_FROM: str = "noreply@echosocial.app"
+    RESEND_API_KEY: str = "PLACEHOLDER"
+
+    # ------------------------------------------------------------------ #
     # CORS
     # ------------------------------------------------------------------ #
     ALLOWED_ORIGINS: str = "http://localhost:3000"

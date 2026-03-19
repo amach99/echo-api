@@ -23,6 +23,10 @@ class RegisterRequest(BaseModel):
     # Required for non-Human accounts — links to the Human representative
     linked_human_id: uuid.UUID | None = None
 
+    # Optional — marks the referring invite as accepted on successful registration.
+    # Invalid or expired tokens are silently ignored and never block registration.
+    invite_token: str | None = None
+
     @model_validator(mode="after")
     def linked_human_required_for_non_human(self) -> "RegisterRequest":
         if self.account_type != "human" and self.linked_human_id is None:
