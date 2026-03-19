@@ -9,6 +9,7 @@ from datetime import UTC, datetime
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.auth.service import hash_password
+from app.models.comment import Comment
 from app.models.echo import Echo
 from app.models.follow import Follow
 from app.models.like import Like
@@ -123,3 +124,22 @@ async def create_vote(
     db.add(vote)
     await db.flush()
     return vote
+
+
+async def create_comment(
+    db: AsyncSession,
+    author: User,
+    post: Post,
+    *,
+    content_text: str = "Test comment",
+    parent_id: uuid.UUID | None = None,
+) -> Comment:
+    comment = Comment(
+        post_id=post.post_id,
+        author_id=author.user_id,
+        parent_id=parent_id,
+        content_text=content_text,
+    )
+    db.add(comment)
+    await db.flush()
+    return comment

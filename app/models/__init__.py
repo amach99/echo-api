@@ -5,6 +5,7 @@ Import order matters for FK resolution.
 """
 
 from app.models.base import Base, TimestampMixin, UUIDPrimaryKeyMixin
+from app.models.comment import Comment
 from app.models.device import Device, Platform
 from app.models.echo import Echo
 from app.models.follow import Follow
@@ -22,6 +23,7 @@ __all__ = [
     "User",
     "AccountType",
     "Post",
+    "Comment",
     "Follow",
     "Like",
     "Vote",

@@ -14,6 +14,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.auth.router import router as auth_router
+from app.comments.router import comments_router, post_comments_router
 from app.config import get_settings
 from app.echoes.router import router as echoes_router
 from app.feeds.router import router as feeds_router
@@ -116,6 +117,10 @@ def create_app() -> FastAPI:
 
     # Users — /me requires auth; /{user_id} is public
     app.include_router(users_router)
+
+    # Comments — two routers: /posts/{post_id}/comments + /comments
+    app.include_router(post_comments_router)
+    app.include_router(comments_router)
 
     # ------------------------------------------------------------------ #
     # Health check (no auth)

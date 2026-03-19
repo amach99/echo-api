@@ -62,3 +62,6 @@ class Post(Base):
     echoes: Mapped[list["Echo"]] = relationship(  # type: ignore[name-defined] # noqa: F821
         "Echo", back_populates="post", cascade="all, delete-orphan"
     )
+    comments: Mapped[list["Comment"]] = relationship(  # type: ignore[name-defined] # noqa: F821
+        "Comment", back_populates="post", cascade="all, delete-orphan"
+    )

@@ -130,6 +130,9 @@ class User(Base):
         "MuteEcho", foreign_keys="MuteEcho.user_id", back_populates="user",
         cascade="all, delete-orphan",
     )
+    comments: Mapped[list["Comment"]] = relationship(  # type: ignore[name-defined] # noqa: F821
+        "Comment", back_populates="author", cascade="all, delete-orphan"
+    )
 
     @property
     def is_pulse_account(self) -> bool:
