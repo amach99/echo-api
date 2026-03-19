@@ -44,8 +44,8 @@ popularity-based **"Pulse"** feed.
 
 | Account Type | Max Posts/Hour |
 |---|---|
-| Human User | 5 posts/hour |
-| Business / Meme / Social Info | 2 posts/hour |
+| Human User | 2 posts/hour |
+| Business / Meme / Social Info | 5 posts/hour |
 
 ---
 

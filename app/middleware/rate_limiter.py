@@ -2,8 +2,8 @@
 app/middleware/rate_limiter.py — Sliding-window rate limiter backed by Redis.
 
 Post limits (from PRD §4):
-  Human accounts:              5 posts/hour
-  Business/Meme/Social Info:   2 posts/hour
+  Human accounts:              2 posts/hour
+  Business/Meme/Social Info:   5 posts/hour
 
 Usage:
     from app.middleware.rate_limiter import rate_limit
@@ -36,10 +36,10 @@ logger = logging.getLogger(__name__)
 
 # Post creation rate limits by account type
 _POST_LIMITS: dict[AccountType, int] = {
-    AccountType.HUMAN: 5,
-    AccountType.BUSINESS: 2,
-    AccountType.MEME: 2,
-    AccountType.SOCIAL_INFO: 2,
+    AccountType.HUMAN: 2,
+    AccountType.BUSINESS: 5,
+    AccountType.MEME: 5,
+    AccountType.SOCIAL_INFO: 5,
 }
 _POST_WINDOW_SECONDS = 3600  # 1 hour
 
