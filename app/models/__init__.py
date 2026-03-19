@@ -5,6 +5,7 @@ Import order matters for FK resolution.
 """
 
 from app.models.base import Base, TimestampMixin, UUIDPrimaryKeyMixin
+from app.models.device import Device, Platform
 from app.models.echo import Echo
 from app.models.follow import Follow
 from app.models.invite import Invite, InviteStatus
@@ -28,4 +29,6 @@ __all__ = [
     "MuteEcho",
     "Invite",
     "InviteStatus",
+    "Device",
+    "Platform",
 ]

@@ -60,6 +60,16 @@ class Settings(BaseSettings):
     ID_VERIFY_WEBHOOK_SECRET: str = "PLACEHOLDER"
 
     # ------------------------------------------------------------------ #
+    # Push notifications
+    # ------------------------------------------------------------------ #
+    PUSH_PROVIDER: Literal["mock", "apns", "fcm"] = "mock"
+    APNS_KEY_ID: str = "PLACEHOLDER"
+    APNS_TEAM_ID: str = "PLACEHOLDER"
+    APNS_BUNDLE_ID: str = "com.echosocial.app"
+    APNS_PRIVATE_KEY: str = "PLACEHOLDER"
+    FCM_SERVER_KEY: str = "PLACEHOLDER"
+
+    # ------------------------------------------------------------------ #
     # Email delivery
     # ------------------------------------------------------------------ #
     EMAIL_PROVIDER: Literal["mock", "resend"] = "mock"
