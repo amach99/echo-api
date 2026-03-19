@@ -32,3 +32,8 @@ Thumbs.db
 
 # Docker
 *.log
+
+# Claude Code agent system directories (never commit)
+.agency_agents_src/
+.claude_tools/
+.claude/
