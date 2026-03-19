@@ -24,6 +24,8 @@ from app.middleware.security_headers import SecurityHeadersMiddleware
 from app.mute_echoes.router import router as mute_echoes_router
 from app.posts.router import router as posts_router
 from app.redis_client import close_redis, init_redis
+from app.users.router import router as users_router
+from app.verification.router import router as verification_router
 from app.votes.router import router as votes_router
 
 settings = get_settings()
@@ -100,6 +102,12 @@ def create_app() -> FastAPI:
 
     # Media upload — write-action gate at router level
     app.include_router(media_router)
+
+    # Verification — /initiate requires auth; /callback is called by Yoti
+    app.include_router(verification_router)
+
+    # Users — /me requires auth; /{user_id} is public
+    app.include_router(users_router)
 
     # ------------------------------------------------------------------ #
     # Health check (no auth)
