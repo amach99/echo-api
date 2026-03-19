@@ -32,11 +32,14 @@ class AccountType(str, enum.Enum):
     SOCIAL_INFO = "social_info"
 
 
-# PostgreSQL native enum type — matches SCHEMA.sql exactly
+# PostgreSQL native enum type — matches SCHEMA.sql exactly.
+# values_callable ensures Postgres enum uses .value strings ("human", "business", ...)
+# instead of Python member names ("HUMAN", "BUSINESS", ...).
 account_type_pg_enum = Enum(
     AccountType,
     name="account_type_enum",
     create_type=True,   # Alembic will emit CREATE TYPE
+    values_callable=lambda obj: [e.value for e in obj],
 )
 
 

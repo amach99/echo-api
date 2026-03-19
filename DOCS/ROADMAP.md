@@ -12,10 +12,10 @@ Nothing moves to Phase 2 until all five Phase 1 milestones pass security review.
 
 ---
 
-### Milestone 1.1 — Identity Core (The 18+ ID Gate)
+### Milestone 1.1 — Identity Core (The 18+ Age Gate)
 **This is the make-or-break milestone. Everything else is blocked until this is production-ready.**
 
-- [ ] Integrate Yoti or Clear API for **Level 3 Government ID verification**
+- [ ] Integrate **Yoti Age Estimation** API for face-scan age verification (no government ID — no biometric storage)
 - [ ] Implement age-check callback that sets `users.is_verified_human = TRUE` on success
 - [ ] Build `AgeVerificationMiddleware` — applied as a FastAPI `Depends` on **all write-action routes**
   - POST /posts

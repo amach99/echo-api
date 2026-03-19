@@ -20,9 +20,9 @@ import logging
 import uuid
 from datetime import UTC, datetime
 
-from sqlalchemy import func, select, text
+from sqlalchemy import func, literal_column, select, text
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.orm import selectinload
+from sqlalchemy.orm import aliased, selectinload
 
 from app.feeds.schemas import FeedResponse, LifeFeedItem, PulseFeedItem
 from app.models.echo import Echo
@@ -83,8 +83,8 @@ async def get_life_feed(
             Post.created_at.label("sort_ts"),
             User.username.label("author_username"),
             func.count(Like.post_id).label("like_count"),
-            text("NULL::text").label("echoed_by_username"),
-            text("NULL::timestamptz").label("echoed_at"),
+            literal_column("NULL::text").label("echoed_by_username"),
+            literal_column("NULL::timestamptz").label("echoed_at"),
         )
         .join(User, Post.author_id == User.user_id)
         .outerjoin(Like, Like.post_id == Post.post_id)
@@ -102,30 +102,6 @@ async def get_life_feed(
     # Step 3b: Echoed Pulse posts from followed Humans (not muted)
     # The sort timestamp is echo.created_at, NOT post.created_at
     # (the post appears in the feed at the time the Human vouched for it)
-    echoed_posts_q = (
-        select(
-            Post.post_id,
-            Post.author_id,
-            Post.content_text,
-            Post.media_url,
-            Post.is_pulse_post,
-            Echo.created_at.label("sort_ts"),  # <-- echo timestamp, not post timestamp
-            User.username.label("author_username"),
-            text("0").label("like_count"),
-            EchoUser.username.label("echoed_by_username"),
-            Echo.created_at.label("echoed_at"),
-        )
-        .join(User, Post.author_id == User.user_id)
-        .join(Echo, Echo.post_id == Post.post_id)
-        .join(EchoUser := User.__class__, Echo.echoer_id == text("echoer.user_id"))
-        .where(
-            Echo.echoer_id.in_(followed_ids),
-            Post.is_pulse_post.is_(True),
-        )
-    )
-
-    # Simpler approach using aliased
-    from sqlalchemy.orm import aliased
     EchoUser = aliased(User, name="echo_user")
 
     echoed_posts_q = (
@@ -137,7 +113,7 @@ async def get_life_feed(
             Post.is_pulse_post,
             Echo.created_at.label("sort_ts"),
             User.username.label("author_username"),
-            text("0").label("like_count"),
+            literal_column("0").label("like_count"),
             EchoUser.username.label("echoed_by_username"),
             Echo.created_at.label("echoed_at"),
         )

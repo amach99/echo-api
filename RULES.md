@@ -37,7 +37,7 @@ FeedSortStrategy = Literal["chronological", "net_score"]
 
 ---
 
-## RULE 2 — 2026 Texas Compliance: Mandatory 18+ ID Verification
+## RULE 2 — 2026 Texas Compliance: Mandatory 18+ Age Verification
 
 ### Legal Basis
 Texas SB 2420 (2026) / Digital Authenticity Act.
@@ -72,11 +72,22 @@ router = APIRouter(dependencies=[Depends(require_age_verified)])
 - No feature flags that disable this check outside of local `ENV=development`
 - No test-mode shortcuts in any deployed environment
 - No backdoor endpoints that accept `bypass_verification=true`
+- **No storage of face images, government IDs, or biometric templates at any layer**
+  (API server, database, S3, Redis, application logs)
+- **No logging of raw verification webhook payloads** if they contain biometric data
 
-### ID Verification Flow
-- Provider: Yoti or Clear (Level 3 Government ID scan)
-- On successful callback: set `users.is_verified_human = TRUE` via trusted server-side call only
-- Never accept client-submitted `is_verified_human` values
+### ID Verification Method: Yoti Age Estimation (Face Scan Only)
+
+- **Provider:** Yoti Age Estimation — face scan product, not Yoti Identity Verification (no government ID required)
+- **Method:** Face scan (selfie) only. No document upload. No biometric template stored anywhere.
+- **No Data Storage:** Echo never sees, receives, or stores your ID, photo, or biometric data.
+  Yoti performs age estimation and returns only a boolean result (`age ≥ 18: yes/no`) and a
+  confidence score. The face scan image is deleted immediately after the check is complete.
+  Yoti does not retain biometric data — confirmed by Yoti's published data policy.
+- On successful callback: set `users.is_verified_human = TRUE` via trusted server-side call only.
+- Never accept client-submitted `is_verified_human` values.
+- **Legal note:** Texas SB 2420 / Digital Authenticity Act compliance via face-scan age estimation
+  is to be confirmed by legal counsel before public launch. Development proceeds on this model.
 
 ---
 
@@ -201,7 +212,7 @@ The following tests MUST pass before any backend deployment:
 | Rule | Summary | Violation Severity |
 |---|---|---|
 | Rule 1 | No algorithmic sorting — chrono or net-score only | CRITICAL |
-| Rule 2 | 18+ ID gate on all write-actions (Texas SB 2420) | CRITICAL |
+| Rule 2 | 18+ age gate on all write-actions — face scan, no biometric storage (Texas SB 2420) | CRITICAL |
 | Rule 3 | Business content in Life Feed only via Human Echo | CRITICAL |
 | Rule 4 | All FastAPI endpoints must be `async def` | HIGH |
 | Rule 5 | Zero third-party tracking pixels or ad networks | CRITICAL |

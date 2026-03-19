@@ -11,8 +11,8 @@ JWT strategy:
 import uuid
 from datetime import UTC, datetime, timedelta
 
+import bcrypt
 from jose import JWTError, jwt
-from passlib.context import CryptContext
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -22,7 +22,8 @@ from app.models.user import AccountType, User
 
 settings = get_settings()
 
-_pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+# bcrypt hard-limit is 72 bytes — truncate before hashing to avoid ValueError
+_BCRYPT_MAX_BYTES = 72
 
 
 # ------------------------------------------------------------------ #
@@ -30,11 +31,15 @@ _pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 # ------------------------------------------------------------------ #
 
 def hash_password(plain: str) -> str:
-    return _pwd_context.hash(plain)
+    """Hash a plaintext password with bcrypt. Truncates to 72 bytes (bcrypt limit)."""
+    pw_bytes = plain.encode("utf-8")[:_BCRYPT_MAX_BYTES]
+    return bcrypt.hashpw(pw_bytes, bcrypt.gensalt()).decode("utf-8")
 
 
 def verify_password(plain: str, hashed: str) -> bool:
-    return _pwd_context.verify(plain, hashed)
+    """Verify a plaintext password against a bcrypt hash."""
+    pw_bytes = plain.encode("utf-8")[:_BCRYPT_MAX_BYTES]
+    return bcrypt.checkpw(pw_bytes, hashed.encode("utf-8"))
 
 
 # ------------------------------------------------------------------ #

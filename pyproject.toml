@@ -78,3 +78,6 @@ ignore_missing_imports = true
 
 [tool.coverage.run]
 omit = ["tests/*", "alembic/*"]
+# SQLAlchemy 2.0 async uses greenlets for the sync/async bridge.
+# Without this, service-layer code called via await db.execute() appears uncovered.
+concurrency = ["greenlet", "thread"]

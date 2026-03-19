@@ -28,14 +28,17 @@ popularity-based **"Pulse"** feed.
 | **Meme** | Restricted | Pulse Feed | ❌ No (only via Echo) | ✅ Yes |
 | **Social Info** | Restricted | Pulse Feed | ❌ No (only via Echo) | ✅ Yes |
 
-### 1.2 The "Texas-Standard" ID Verification (2026 Compliance — Texas SB 2420 / Digital Authenticity Act)
+### 1.2 The "Texas-Standard" Age Verification (2026 Compliance — Texas SB 2420 / Digital Authenticity Act)
 
-- **Integration**: Mandatory Government ID scan via **Level 3 Verification** (Yoti / Clear API)
+- **Integration**: **Yoti Age Estimation** — face scan only (no government ID required, no biometric data stored)
 - **Trigger**: Required before any write-action (post, vote, echo, like, DM)
 - **Gate field**: `is_verified_human = TRUE` in the `users` table
 - **Verification Badge**: "Verified Human" mark is immutable once granted
 - **Unverified state**: Read-only access granted; all write-actions return `HTTP 403 AGE_VERIFICATION_REQUIRED`
 - **Business Linking**: Every Business/Meme/Social Info account MUST be tethered to a `linked_human_id` (a Verified Human "Representative") for legal accountability
+- **Privacy guarantee**: Echo never sees, receives, or stores the user's face image, ID, or any biometric data.
+  Yoti returns only `{ age_verified: bool, confidence: float }` — the face scan is deleted immediately after the check.
+  Legal counsel to confirm Texas SB 2420 compliance via face-scan age estimation before public launch.
 
 ### 1.3 Rate Limiting by Account Type
 
@@ -125,7 +128,7 @@ Pulse Feed Query Logic:
 |---|---|---|
 | Database | PostgreSQL | See `DOCS/SCHEMA.sql` |
 | Backend | Python / FastAPI | ALL endpoints async |
-| Auth / ID Verification | Yoti / Clear API | Level 3 Government ID |
+| Auth / Age Verification | Yoti Age Estimation | Face scan only — no ID, no biometric storage |
 | Media Storage | AWS S3 | Images and video |
 | Feed Cache | Redis | Real-time feed caching |
 | Compliance | Texas SB 2420 (2026) | Digital Authenticity Act |
@@ -141,6 +144,57 @@ These are **non-negotiable** across every sprint and every developer:
 3. `is_verified_human = FALSE` means read-only — no write path exists that bypasses this
 4. No reputation score or net score is ever surfaced publicly on a profile page
 5. The `mute_echoes` table is checked on EVERY Life Feed query — never skipped for performance
+
+---
+
+## 6. Age Verification Architecture
+
+**Provider:** Yoti Age Estimation (face-scan product — distinct from Yoti Identity Verification)
+
+Echo uses face-scan age estimation — no government ID is ever required or collected.
+
+### Verification Flow
+
+```
+1. User taps "Verify My Age" in the app
+2. App opens the Yoti Age Estimation interface (via Universal Link / deep link on mobile)
+3. User performs a quick face scan (selfie) entirely within the Yoti interface
+4. Yoti's on-device or server-side model estimates age
+5. Face scan image is deleted immediately after the check — by Yoti's policy
+6. Yoti sends a signed webhook to Echo's POST /verification/callback
+7. Echo verifies the webhook signature, reads { age_verified: bool, confidence: float }
+8. If age_verified = true: sets users.is_verified_human = TRUE in the database
+9. User can now perform write-actions (post, like, vote, echo, follow, DM)
+```
+
+### Privacy Guarantee
+
+| What | Echo's policy |
+|---|---|
+| Face image | Never transmitted to Echo. Deleted by Yoti immediately. |
+| Government ID | Never requested. Not part of this flow. |
+| Biometric template | Never stored by Echo or Yoti. |
+| Data stored by Echo | `is_verified_human = TRUE` (boolean) + verification timestamp only. |
+
+### Adapter Interface (Implementation Target)
+
+```python
+# app/verification/adapter.py — target interface
+class AgeVerificationAdapter(Protocol):
+    async def initiate_verification(self, user_id: UUID, redirect_url: str) -> str:
+        """Returns the Yoti Age Estimation session URL to redirect/open for the user."""
+        ...
+
+    async def handle_callback(
+        self, payload: dict, signature: str
+    ) -> VerificationResult:
+        """Verifies webhook signature; returns VerificationResult(age_verified, confidence)."""
+        ...
+
+# Concrete implementations:
+# - YotiAgeEstimationAdapter  → production (Yoti Age Estimation API)
+# - MockVerificationAdapter   → local dev (ID_VERIFY_PROVIDER=mock, auto-approves)
+```
 
 ---
 

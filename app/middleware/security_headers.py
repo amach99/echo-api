@@ -1,17 +1,15 @@
 """
 app/middleware/security_headers.py — Security and privacy headers (Rule 5 + Rule 6).
 
-Applied as ASGI middleware to EVERY response.
+Implemented as raw ASGI middleware (not BaseHTTPMiddleware) to avoid anyio
+task-group/event-loop conflicts with asyncpg in both production and tests.
 
 CSP blocks all third-party scripts, images, and connections — Rule 5
 (zero tracking pixels, zero ad-network integrations).
 """
 
-from collections.abc import Callable
-
-from starlette.middleware.base import BaseHTTPMiddleware
-from starlette.requests import Request
-from starlette.responses import Response
+from collections.abc import Callable, MutableMapping
+from typing import Any
 
 # Rule 5: CSP must block all third-party resources
 _CSP = (
@@ -26,23 +24,54 @@ _CSP = (
     "frame-ancestors 'none';"
 )
 
+_SECURITY_HEADERS: list[tuple[bytes, bytes]] = [
+    (b"content-security-policy", _CSP.encode()),
+    (b"x-content-type-options", b"nosniff"),
+    (b"x-frame-options", b"DENY"),
+    (b"x-xss-protection", b"1; mode=block"),
+    (b"referrer-policy", b"strict-origin-when-cross-origin"),
+    (
+        b"permissions-policy",
+        b"geolocation=(), camera=(), microphone=(), interest-cohort=()",
+    ),
+]
 
-class SecurityHeadersMiddleware(BaseHTTPMiddleware):
-    async def dispatch(self, request: Request, call_next: Callable) -> Response:
-        response: Response = await call_next(request)
-        response.headers["Content-Security-Policy"] = _CSP
-        response.headers["X-Content-Type-Options"] = "nosniff"
-        response.headers["X-Frame-Options"] = "DENY"
-        response.headers["X-XSS-Protection"] = "1; mode=block"
-        response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
-        response.headers["Permissions-Policy"] = (
-            "geolocation=(), camera=(), microphone=(), interest-cohort=()"
-        )
-        # HSTS — only in production (dev uses HTTP)
-        if request.url.scheme == "https":
-            response.headers["Strict-Transport-Security"] = (
-                "max-age=63072000; includeSubDomains; preload"
-            )
-        # Remove server fingerprint
-        response.headers.pop("server", None)
-        return response
+_HSTS_HEADER = (
+    b"strict-transport-security",
+    b"max-age=63072000; includeSubDomains; preload",
+)
+
+
+class SecurityHeadersMiddleware:
+    """Raw ASGI middleware that injects security headers into every HTTP response."""
+
+    def __init__(self, app: Callable) -> None:
+        self.app = app
+
+    async def __call__(
+        self,
+        scope: MutableMapping[str, Any],
+        receive: Callable,
+        send: Callable,
+    ) -> None:
+        if scope["type"] != "http":
+            await self.app(scope, receive, send)
+            return
+
+        is_https = scope.get("scheme", "http") == "https"
+
+        async def send_with_security_headers(message: MutableMapping[str, Any]) -> None:
+            if message["type"] == "http.response.start":
+                # Build new headers list, injecting security headers and removing "server"
+                existing: list[tuple[bytes, bytes]] = [
+                    (k, v)
+                    for k, v in message.get("headers", [])
+                    if k.lower() != b"server"          # strip server fingerprint
+                ]
+                new_headers = existing + _SECURITY_HEADERS
+                if is_https:
+                    new_headers.append(_HSTS_HEADER)
+                message = {**message, "headers": new_headers}
+            await send(message)
+
+        await self.app(scope, receive, send_with_security_headers)

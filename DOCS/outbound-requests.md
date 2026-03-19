@@ -4,9 +4,9 @@
 
 | Service | Endpoint | Purpose | Module | Data Sent |
 |---|---|---|---|---|
-| **Yoti / Clear** | `https://api.yoti.com` or `https://api.clearme.com` | Level 3 Government ID verification (18+ gate) | `app/verification/adapter.py` | User session ID, redirect URL |
-| **Yoti / Clear** (webhook) | Inbound callback to `/verification/callback` | Verification result delivery | `app/verification/router.py` | None (inbound only) |
-| **AWS S3** | `https://{bucket}.s3.{region}.amazonaws.com` | Presigned PUT URL generation (media upload) | `app/media/service.py` | Object key, content-type, size |
+| **Yoti Age Estimation** | `https://age.yoti.com/api/...` | Face-scan age estimation (18+ gate). Returns `{ age_verified: bool, confidence: float }` only. No biometric data transmitted to Echo. Face image deleted by Yoti immediately post-check. | `app/verification/adapter.py` | User session ID, redirect URL |
+| **Yoti Age Estimation** (webhook) | Inbound callback to `POST /verification/callback` | Age estimation result delivery (inbound only). Webhook signature verified before processing. | `app/verification/router.py` | None (inbound only) |
+| **AWS S3** | `https://{bucket}.s3.{region}.amazonaws.com` | Presigned PUT URL generation (media upload). Client uploads directly — Echo server never receives binary media. | `app/media/service.py` | Object key, content-type, size |
 
 ## Prohibited Outbound Destinations
 

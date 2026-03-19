@@ -210,7 +210,6 @@ async def test_muting_echoes_hides_echoed_posts_keeps_originals(
     await create_follow(db, follower=viewer, following=echoer)
 
     # Echoer posts an original Life post
-    original = await create_pulse_post  # reuse helper
     from app.models.post import Post as PostModel
     original_post = PostModel(
         author_id=echoer.user_id,
