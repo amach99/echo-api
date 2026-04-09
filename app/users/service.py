@@ -32,6 +32,42 @@ async def get_user_profile(user_id: uuid.UUID, db: AsyncSession) -> User:
     return user
 
 
+async def search_users(
+    q: str,
+    db: AsyncSession,
+    skip: int = 0,
+    limit: int = 20,
+) -> list[User]:
+    """Search users by username prefix (case-insensitive). Returns up to limit results."""
+    from sqlalchemy import func
+    result = await db.execute(
+        select(User)
+        .where(func.lower(User.username).contains(q.lower()))
+        .order_by(User.username)
+        .offset(skip)
+        .limit(limit)
+    )
+    return list(result.scalars().all())
+
+
+async def get_user_posts(
+    user_id: uuid.UUID,
+    db: AsyncSession,
+    skip: int = 0,
+    limit: int = 20,
+) -> list:
+    """Return a user's posts newest-first, paginated."""
+    from app.models.post import Post
+    result = await db.execute(
+        select(Post)
+        .where(Post.author_id == user_id)
+        .order_by(Post.created_at.desc())
+        .offset(skip)
+        .limit(limit)
+    )
+    return list(result.scalars().all())
+
+
 async def update_user_profile(
     user: User,
     payload: UserUpdateRequest,

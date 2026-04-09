@@ -12,14 +12,17 @@ GET  /users/{user_id}  public — returns any user's public profile
 
 import uuid
 
-from fastapi import APIRouter, Depends, status
+from fastapi import APIRouter, Depends, Query, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.auth.dependencies import get_current_user
 from app.database import get_async_db
+from app.models.post import Post
 from app.models.user import User
+from app.posts.schemas import PostResponse
 from app.users.schemas import UserPublicResponse, UserUpdateRequest
-from app.users.service import get_user_profile, update_user_profile
+from app.follows.service import get_followers, get_following
+from app.users.service import get_user_profile, get_user_posts, search_users, update_user_profile
 
 router = APIRouter(prefix="/users", tags=["users"])
 
@@ -59,6 +62,26 @@ async def update_me(
 
 
 # ------------------------------------------------------------------ #
+# /search — username search (public)
+# ------------------------------------------------------------------ #
+
+
+@router.get(
+    "/search",
+    response_model=list[UserPublicResponse],
+    summary="Search users by username",
+)
+async def search_users_endpoint(
+    q: str = Query(..., min_length=1, max_length=30, description="Username search term"),
+    skip: int = Query(default=0, ge=0),
+    limit: int = Query(default=20, ge=1, le=50),
+    db: AsyncSession = Depends(get_async_db),
+) -> list[User]:
+    """Case-insensitive username search. Public — no auth required."""
+    return await search_users(q, db, skip=skip, limit=limit)
+
+
+# ------------------------------------------------------------------ #
 # /{user_id} — public profile lookup
 # ------------------------------------------------------------------ #
 
@@ -74,3 +97,48 @@ async def get_user(
 ) -> User:
     """Returns the public profile for any user. No authentication required."""
     return await get_user_profile(user_id, db)
+
+
+@router.get(
+    "/{user_id}/posts",
+    response_model=list[PostResponse],
+    summary="Get a user's posts",
+)
+async def get_user_posts_endpoint(
+    user_id: uuid.UUID,
+    skip: int = Query(default=0, ge=0),
+    limit: int = Query(default=20, ge=1, le=50),
+    db: AsyncSession = Depends(get_async_db),
+) -> list[Post]:
+    """Returns a user's posts newest-first. Public — no auth required."""
+    return await get_user_posts(user_id, db, skip=skip, limit=limit)
+
+
+@router.get(
+    "/{user_id}/followers",
+    response_model=list[UserPublicResponse],
+    summary="Get a user's followers",
+)
+async def get_user_followers(
+    user_id: uuid.UUID,
+    skip: int = Query(default=0, ge=0),
+    limit: int = Query(default=20, ge=1, le=50),
+    db: AsyncSession = Depends(get_async_db),
+) -> list[User]:
+    """Returns users who follow user_id. Public — no auth required."""
+    return await get_followers(user_id, db, skip=skip, limit=limit)
+
+
+@router.get(
+    "/{user_id}/following",
+    response_model=list[UserPublicResponse],
+    summary="Get users that a user follows",
+)
+async def get_user_following(
+    user_id: uuid.UUID,
+    skip: int = Query(default=0, ge=0),
+    limit: int = Query(default=20, ge=1, le=50),
+    db: AsyncSession = Depends(get_async_db),
+) -> list[User]:
+    """Returns users that user_id follows. Public — no auth required."""
+    return await get_following(user_id, db, skip=skip, limit=limit)

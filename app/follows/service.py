@@ -25,6 +25,32 @@ async def follow_user(follower: User, following_id: uuid.UUID, db: AsyncSession)
     return follow
 
 
+async def get_followers(user_id: uuid.UUID, db: AsyncSession, skip: int = 0, limit: int = 20) -> list[User]:
+    """Return users who follow user_id."""
+    result = await db.execute(
+        select(User)
+        .join(Follow, Follow.follower_id == User.user_id)
+        .where(Follow.following_id == user_id)
+        .order_by(Follow.created_at.desc())
+        .offset(skip)
+        .limit(limit)
+    )
+    return list(result.scalars().all())
+
+
+async def get_following(user_id: uuid.UUID, db: AsyncSession, skip: int = 0, limit: int = 20) -> list[User]:
+    """Return users that user_id follows."""
+    result = await db.execute(
+        select(User)
+        .join(Follow, Follow.following_id == User.user_id)
+        .where(Follow.follower_id == user_id)
+        .order_by(Follow.created_at.desc())
+        .offset(skip)
+        .limit(limit)
+    )
+    return list(result.scalars().all())
+
+
 async def unfollow_user(follower: User, following_id: uuid.UUID, db: AsyncSession) -> None:
     result = await db.execute(select(Follow).where(
         Follow.follower_id == follower.user_id, Follow.following_id == following_id))
