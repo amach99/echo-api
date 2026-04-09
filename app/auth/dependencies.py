@@ -20,6 +20,7 @@ from app.database import get_async_db
 from app.models.user import User
 
 _bearer_scheme = HTTPBearer(auto_error=True)
+_bearer_scheme_optional = HTTPBearer(auto_error=False)
 
 _CREDENTIALS_EXCEPTION = HTTPException(
     status_code=status.HTTP_401_UNAUTHORIZED,
@@ -52,3 +53,27 @@ async def get_current_user(
         raise _CREDENTIALS_EXCEPTION
 
     return user
+
+
+async def get_current_user_optional(
+    credentials: HTTPAuthorizationCredentials | None = Depends(_bearer_scheme_optional),
+    db: AsyncSession = Depends(get_async_db),
+) -> User | None:
+    """
+    Like get_current_user but returns None instead of raising 401 when no token is present.
+    Used for endpoints that are public but can provide extra per-user data when authenticated.
+    """
+    if credentials is None:
+        return None
+    try:
+        payload = decode_access_token(credentials.credentials)
+        if payload.get("type") != "access":
+            return None
+        user_id_str: str | None = payload.get("sub")
+        if not user_id_str:
+            return None
+        user_id = uuid.UUID(user_id_str)
+    except (JWTError, ValueError):
+        return None
+
+    return await get_user_by_id(user_id, db)

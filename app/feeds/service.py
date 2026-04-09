@@ -33,6 +33,48 @@ from app.models.post import Post
 from app.models.user import AccountType, User
 from app.models.vote import Vote
 
+# ---------------------------------------------------------------------------
+# Helpers: batch per-user state annotation (one query per page — N+1-safe)
+# ---------------------------------------------------------------------------
+
+async def _liked_post_ids(viewer_id: uuid.UUID, post_ids: list[uuid.UUID], db: AsyncSession) -> set[uuid.UUID]:
+    """Return the subset of post_ids that viewer_id has liked."""
+    if not post_ids:
+        return set()
+    result = await db.execute(
+        select(Like.post_id).where(
+            Like.user_id == viewer_id,
+            Like.post_id.in_(post_ids),
+        )
+    )
+    return {row[0] for row in result.fetchall()}
+
+
+async def _vote_map(viewer_id: uuid.UUID, post_ids: list[uuid.UUID], db: AsyncSession) -> dict[uuid.UUID, int]:
+    """Return {post_id: vote_value} for all posts the viewer has voted on."""
+    if not post_ids:
+        return {}
+    result = await db.execute(
+        select(Vote.post_id, Vote.vote_value).where(
+            Vote.voter_id == viewer_id,
+            Vote.post_id.in_(post_ids),
+        )
+    )
+    return {row[0]: row[1] for row in result.fetchall()}
+
+
+async def _echoed_post_ids(viewer_id: uuid.UUID, post_ids: list[uuid.UUID], db: AsyncSession) -> set[uuid.UUID]:
+    """Return the subset of post_ids that viewer_id has echoed."""
+    if not post_ids:
+        return set()
+    result = await db.execute(
+        select(Echo.post_id).where(
+            Echo.echoer_id == viewer_id,
+            Echo.post_id.in_(post_ids),
+        )
+    )
+    return {row[0] for row in result.fetchall()}
+
 logger = logging.getLogger(__name__)
 
 _DEFAULT_LIMIT = 20
@@ -142,6 +184,10 @@ async def get_life_feed(
     has_next = len(rows) > limit
     rows = rows[:limit]
 
+    # Batch-lookup which posts the viewer has liked (one extra query)
+    page_post_ids = [row.post_id for row in rows]
+    liked_ids = await _liked_post_ids(viewer_id, page_post_ids, db)
+
     items = [
         LifeFeedItem(
             post_id=row.post_id,
@@ -152,6 +198,7 @@ async def get_life_feed(
             is_pulse_post=row.is_pulse_post,
             created_at=row.sort_ts,
             like_count=row.like_count or 0,
+            liked_by_current_user=row.post_id in liked_ids,
             echoed_by_username=row.echoed_by_username,
             echoed_at=row.echoed_at,
         )
@@ -164,6 +211,7 @@ async def get_life_feed(
 
 async def get_pulse_feed(
     db: AsyncSession,
+    viewer: User | None = None,
     cursor_score: int | None = None,
     cursor_ts: datetime | None = None,
     limit: int = _DEFAULT_LIMIT,
@@ -214,6 +262,14 @@ async def get_pulse_feed(
     has_next = len(rows) > limit
     rows = rows[:limit]
 
+    # Batch-lookup per-user state when viewer is authenticated
+    page_post_ids = [row.post_id for row in rows]
+    vote_map: dict[uuid.UUID, int] = {}
+    echoed_ids: set[uuid.UUID] = set()
+    if viewer is not None:
+        vote_map = await _vote_map(viewer.user_id, page_post_ids, db)
+        echoed_ids = await _echoed_post_ids(viewer.user_id, page_post_ids, db)
+
     items = [
         PulseFeedItem(
             post_id=row.post_id,
@@ -224,6 +280,8 @@ async def get_pulse_feed(
             is_pulse_post=row.is_pulse_post,
             created_at=row.created_at,
             net_score=row.net_score,
+            current_user_vote=vote_map.get(row.post_id),
+            is_echoed_by_current_user=row.post_id in echoed_ids,
         )
         for row in rows
     ]

@@ -19,6 +19,9 @@ class LifeFeedItem(BaseModel):
     created_at: datetime
     like_count: int = 0
 
+    # Per-user interaction state (populated when authenticated)
+    liked_by_current_user: bool = False
+
     # Populated when item appears via an Echo
     echoed_by_username: str | None = None
     echoed_at: datetime | None = None
@@ -35,6 +38,10 @@ class PulseFeedItem(BaseModel):
     is_pulse_post: bool
     created_at: datetime
     net_score: int = 0
+
+    # Per-user interaction state (populated when authenticated)
+    current_user_vote: int | None = None   # 1, -1, or None
+    is_echoed_by_current_user: bool = False
 
     model_config = {"from_attributes": True}
 
