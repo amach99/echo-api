@@ -1,5 +1,5 @@
 """
-app/posts/router.py — Post creation and retrieval endpoints.
+app/posts/router.py — Post creation, retrieval, and editing endpoints.
 
 Write actions are gated by require_age_verified (Rule 2).
 Rate limiting applied at post creation (Rule 6 + PRD §4).
@@ -15,10 +15,26 @@ from app.database import get_async_db
 from app.middleware.age_verification import require_age_verified
 from app.middleware.rate_limiter import post_rate_limit
 from app.models.user import User
-from app.posts.schemas import PostCreate, PostResponse, PostUpdate
+from app.posts.schemas import MediaItem, PostCreate, PostResponse, PostUpdate
 from app.posts.service import create_post, get_post_by_id, update_post
 
 router = APIRouter(prefix="/posts", tags=["posts"])
+
+
+def _build_response(post, author_username: str) -> PostResponse:
+    """Construct a PostResponse from an ORM Post with loaded media + author."""
+    media_items = [
+        MediaItem(media_url=m.media_url, position=m.position) for m in post.media
+    ]
+    return PostResponse(
+        post_id=post.post_id,
+        author_id=post.author_id,
+        author_username=author_username,
+        content_text=post.content_text,
+        media=media_items,
+        is_pulse_post=post.is_pulse_post,
+        created_at=post.created_at,
+    )
 
 
 @router.post(
@@ -37,12 +53,17 @@ async def create_new_post(
     Requires: 18+ ID verified.  Rate limits: 5/hr (Human), 2/hr (Business/Meme/Info).
     """
     post = await create_post(payload, current_user, db)
+    # Build media items from payload directly — avoids an extra selectinload
+    media_items = [
+        MediaItem(media_url=url, position=i)
+        for i, url in enumerate(payload.media_urls or [])
+    ]
     return PostResponse(
         post_id=post.post_id,
         author_id=post.author_id,
         author_username=current_user.username,
         content_text=post.content_text,
-        media_url=post.media_url,
+        media=media_items,
         is_pulse_post=post.is_pulse_post,
         created_at=post.created_at,
     )
@@ -75,15 +96,7 @@ async def edit_post(
             detail={"code": "FORBIDDEN", "message": "You can only edit your own posts."},
         )
     post = await update_post(post, payload, db)
-    return PostResponse(
-        post_id=post.post_id,
-        author_id=post.author_id,
-        author_username=current_user.username,
-        content_text=post.content_text,
-        media_url=post.media_url,
-        is_pulse_post=post.is_pulse_post,
-        created_at=post.created_at,
-    )
+    return _build_response(post, current_user.username)
 
 
 @router.get("/{post_id}", response_model=PostResponse)
@@ -98,12 +111,4 @@ async def get_post(
             status_code=status.HTTP_404_NOT_FOUND,
             detail={"code": "POST_NOT_FOUND", "message": "Post not found."},
         )
-    return PostResponse(
-        post_id=post.post_id,
-        author_id=post.author_id,
-        author_username=post.author.username,
-        content_text=post.content_text,
-        media_url=post.media_url,
-        is_pulse_post=post.is_pulse_post,
-        created_at=post.created_at,
-    )
+    return _build_response(post, post.author.username)

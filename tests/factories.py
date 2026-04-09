@@ -15,6 +15,7 @@ from app.models.follow import Follow
 from app.models.like import Like
 from app.models.mute_echo import MuteEcho
 from app.models.post import Post
+from app.models.post_media import PostMedia
 from app.models.user import AccountType, User
 from app.models.vote import Vote
 
@@ -64,16 +65,21 @@ async def create_post(
     author: User,
     *,
     content_text: str = "Test post content",
-    media_url: str | None = None,
+    media_urls: list[str] | None = None,
 ) -> Post:
     post = Post(
         author_id=author.user_id,
         content_text=content_text,
-        media_url=media_url,
         is_pulse_post=author.is_pulse_account,
     )
     db.add(post)
     await db.flush()
+
+    if media_urls:
+        for position, url in enumerate(media_urls):
+            db.add(PostMedia(post_id=post.post_id, media_url=url, position=position))
+        await db.flush()
+
     return post
 
 

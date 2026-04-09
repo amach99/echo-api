@@ -8,13 +8,15 @@ from typing import Any
 
 from pydantic import BaseModel
 
+from app.posts.schemas import MediaItem
+
 
 class LifeFeedItem(BaseModel):
     post_id: uuid.UUID
     author_id: uuid.UUID
     author_username: str
     content_text: str | None
-    media_url: str | None
+    media: list[MediaItem] = []
     is_pulse_post: bool
     created_at: datetime
     like_count: int = 0
@@ -34,7 +36,7 @@ class PulseFeedItem(BaseModel):
     author_id: uuid.UUID
     author_username: str
     content_text: str | None
-    media_url: str | None
+    media: list[MediaItem] = []
     is_pulse_post: bool
     created_at: datetime
     net_score: int = 0

@@ -13,6 +13,7 @@ from app.models.invite import Invite, InviteStatus
 from app.models.like import Like
 from app.models.mute_echo import MuteEcho
 from app.models.post import Post
+from app.models.post_media import PostMedia
 from app.models.user import AccountType, User
 from app.models.vote import Vote
 
@@ -23,6 +24,7 @@ __all__ = [
     "User",
     "AccountType",
     "Post",
+    "PostMedia",
     "Comment",
     "Follow",
     "Like",

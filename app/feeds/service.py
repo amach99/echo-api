@@ -30,8 +30,10 @@ from app.models.follow import Follow
 from app.models.like import Like
 from app.models.mute_echo import MuteEcho
 from app.models.post import Post
+from app.models.post_media import PostMedia
 from app.models.user import AccountType, User
 from app.models.vote import Vote
+from app.posts.schemas import MediaItem
 
 # ---------------------------------------------------------------------------
 # Helpers: batch per-user state annotation (one query per page — N+1-safe)
@@ -74,6 +76,28 @@ async def _echoed_post_ids(viewer_id: uuid.UUID, post_ids: list[uuid.UUID], db: 
         )
     )
     return {row[0] for row in result.fetchall()}
+
+
+async def _media_map(
+    post_ids: list[uuid.UUID], db: AsyncSession
+) -> dict[uuid.UUID, list[MediaItem]]:
+    """Return {post_id: [MediaItem, ...]} ordered by position for all given post IDs.
+
+    One query for the whole page — never N+1.
+    """
+    if not post_ids:
+        return {}
+    result = await db.execute(
+        select(PostMedia.post_id, PostMedia.media_url, PostMedia.position)
+        .where(PostMedia.post_id.in_(post_ids))
+        .order_by(PostMedia.post_id, PostMedia.position)
+    )
+    mapping: dict[uuid.UUID, list[MediaItem]] = {}
+    for row in result.fetchall():
+        mapping.setdefault(row.post_id, []).append(
+            MediaItem(media_url=row.media_url, position=row.position)
+        )
+    return mapping
 
 logger = logging.getLogger(__name__)
 
@@ -120,7 +144,6 @@ async def get_life_feed(
             Post.post_id,
             Post.author_id,
             Post.content_text,
-            Post.media_url,
             Post.is_pulse_post,
             Post.created_at.label("sort_ts"),
             User.username.label("author_username"),
@@ -136,7 +159,7 @@ async def get_life_feed(
         )
         .group_by(
             Post.post_id, Post.author_id, Post.content_text,
-            Post.media_url, Post.is_pulse_post, Post.created_at,
+            Post.is_pulse_post, Post.created_at,
             User.username,
         )
     )
@@ -151,7 +174,6 @@ async def get_life_feed(
             Post.post_id,
             Post.author_id,
             Post.content_text,
-            Post.media_url,
             Post.is_pulse_post,
             Echo.created_at.label("sort_ts"),
             User.username.label("author_username"),
@@ -184,9 +206,10 @@ async def get_life_feed(
     has_next = len(rows) > limit
     rows = rows[:limit]
 
-    # Batch-lookup which posts the viewer has liked (one extra query)
+    # Batch-lookup per-page state (two extra queries — never N+1)
     page_post_ids = [row.post_id for row in rows]
     liked_ids = await _liked_post_ids(viewer_id, page_post_ids, db)
+    media_by_post = await _media_map(page_post_ids, db)
 
     items = [
         LifeFeedItem(
@@ -194,7 +217,7 @@ async def get_life_feed(
             author_id=row.author_id,
             author_username=row.author_username,
             content_text=row.content_text,
-            media_url=row.media_url,
+            media=media_by_post.get(row.post_id, []),
             is_pulse_post=row.is_pulse_post,
             created_at=row.sort_ts,
             like_count=row.like_count or 0,
@@ -231,7 +254,6 @@ async def get_pulse_feed(
             Post.post_id,
             Post.author_id,
             Post.content_text,
-            Post.media_url,
             Post.is_pulse_post,
             Post.created_at,
             User.username.label("author_username"),
@@ -242,7 +264,7 @@ async def get_pulse_feed(
         .where(Post.is_pulse_post.is_(True))
         .group_by(
             Post.post_id, Post.author_id, Post.content_text,
-            Post.media_url, Post.is_pulse_post, Post.created_at,
+            Post.is_pulse_post, Post.created_at,
             User.username,
         )
     )
@@ -262,13 +284,14 @@ async def get_pulse_feed(
     has_next = len(rows) > limit
     rows = rows[:limit]
 
-    # Batch-lookup per-user state when viewer is authenticated
+    # Batch-lookup per-page state (up to three extra queries — never N+1)
     page_post_ids = [row.post_id for row in rows]
     vote_map: dict[uuid.UUID, int] = {}
     echoed_ids: set[uuid.UUID] = set()
     if viewer is not None:
         vote_map = await _vote_map(viewer.user_id, page_post_ids, db)
         echoed_ids = await _echoed_post_ids(viewer.user_id, page_post_ids, db)
+    media_by_post = await _media_map(page_post_ids, db)
 
     items = [
         PulseFeedItem(
@@ -276,7 +299,7 @@ async def get_pulse_feed(
             author_id=row.author_id,
             author_username=row.author_username,
             content_text=row.content_text,
-            media_url=row.media_url,
+            media=media_by_post.get(row.post_id, []),
             is_pulse_post=row.is_pulse_post,
             created_at=row.created_at,
             net_score=row.net_score,

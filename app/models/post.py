@@ -15,6 +15,7 @@ from datetime import datetime
 from sqlalchemy import Boolean, DateTime, ForeignKey, Text, func
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
+from sqlalchemy import asc
 
 from app.models.base import Base
 
@@ -36,7 +37,6 @@ class Post(Base):
     )
 
     content_text: Mapped[str | None] = mapped_column(Text, nullable=True)
-    media_url: Mapped[str | None] = mapped_column(Text, nullable=True)
 
     # Feed routing flag — set server-side only from author.account_type.
     # False = Life Feed post | True = Pulse Feed post
@@ -64,4 +64,10 @@ class Post(Base):
     )
     comments: Mapped[list["Comment"]] = relationship(  # type: ignore[name-defined] # noqa: F821
         "Comment", back_populates="post", cascade="all, delete-orphan"
+    )
+    media: Mapped[list["PostMedia"]] = relationship(  # type: ignore[name-defined] # noqa: F821
+        "PostMedia",
+        back_populates="post",
+        cascade="all, delete-orphan",
+        order_by="asc(PostMedia.position)",
     )
