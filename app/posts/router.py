@@ -15,8 +15,8 @@ from app.database import get_async_db
 from app.middleware.age_verification import require_age_verified
 from app.middleware.rate_limiter import post_rate_limit
 from app.models.user import User
-from app.posts.schemas import PostCreate, PostResponse
-from app.posts.service import create_post, get_post_by_id
+from app.posts.schemas import PostCreate, PostResponse, PostUpdate
+from app.posts.service import create_post, get_post_by_id, update_post
 
 router = APIRouter(prefix="/posts", tags=["posts"])
 
@@ -37,6 +37,44 @@ async def create_new_post(
     Requires: 18+ ID verified.  Rate limits: 5/hr (Human), 2/hr (Business/Meme/Info).
     """
     post = await create_post(payload, current_user, db)
+    return PostResponse(
+        post_id=post.post_id,
+        author_id=post.author_id,
+        author_username=current_user.username,
+        content_text=post.content_text,
+        media_url=post.media_url,
+        is_pulse_post=post.is_pulse_post,
+        created_at=post.created_at,
+    )
+
+
+@router.patch(
+    "/{post_id}",
+    response_model=PostResponse,
+    dependencies=[Depends(require_age_verified)],
+)
+async def edit_post(
+    post_id: uuid.UUID,
+    payload: PostUpdate,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_async_db),
+) -> PostResponse:
+    """
+    Update a post's text caption. Only the original author may edit.
+    Requires: 18+ ID verified.
+    """
+    post = await get_post_by_id(post_id, db)
+    if not post:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail={"code": "POST_NOT_FOUND", "message": "Post not found."},
+        )
+    if post.author_id != current_user.user_id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail={"code": "FORBIDDEN", "message": "You can only edit your own posts."},
+        )
+    post = await update_post(post, payload, db)
     return PostResponse(
         post_id=post.post_id,
         author_id=post.author_id,

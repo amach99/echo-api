@@ -12,7 +12,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.post import Post
 from app.models.user import User
-from app.posts.schemas import PostCreate
+from app.posts.schemas import PostCreate, PostUpdate
 
 
 async def create_post(
@@ -43,3 +43,18 @@ async def get_post_by_id(post_id: uuid.UUID, db: AsyncSession) -> Post | None:
         select(Post).where(Post.post_id == post_id)
     )
     return result.scalar_one_or_none()
+
+
+async def update_post(
+    post: Post,
+    payload: PostUpdate,
+    db: AsyncSession,
+) -> Post:
+    """
+    Update a post's content_text. Only the post's author may do this.
+    Ownership check must be performed by the caller (router).
+    """
+    if payload.content_text is not None:
+        post.content_text = payload.content_text
+    await db.flush()
+    return post

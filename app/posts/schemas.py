@@ -11,6 +11,14 @@ from datetime import datetime
 from pydantic import BaseModel, Field, model_validator
 
 
+class PostUpdate(BaseModel):
+    content_text: str | None = Field(
+        default=None,
+        max_length=5000,
+        description="Updated text content of the post",
+    )
+
+
 class PostCreate(BaseModel):
     content_text: str | None = Field(
         default=None,
